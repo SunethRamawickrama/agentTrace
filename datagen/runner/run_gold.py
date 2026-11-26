@@ -37,6 +37,7 @@ from datagen.runner.trace_schema import validate_event
 
 APP_NAME = "finance"
 SETTLE_SECONDS = 0.25
+DEFAULT_DELAY_BETWEEN_CASES = 4.0
 
 
 # --- specialist A2A servers ---------------------------------------------------
@@ -74,7 +75,8 @@ def stop_servers(procs: list[subprocess.Popen]) -> None:
 
 # --- single run ---------------------------------------------------------------
 async def run_case(runner: Runner, session_service: InMemorySessionService,
-                   case: GoldCase, sample: int) -> dict:
+                   case: GoldCase, sample: int,
+                   collector: TraceCollector | None = None) -> dict:
     run_id = uuid.uuid4().hex
     session_id = f"{case.case_id}-{sample}-{run_id[:8]}"
     await session_service.create_session(app_name=APP_NAME, user_id="runner", session_id=session_id)
@@ -88,6 +90,8 @@ async def run_case(runner: Runner, session_service: InMemorySessionService,
             if event.is_final_response() and event.content and event.content.parts:
                 final_output = (event.content.parts[-1].text or "").strip()
     except Exception as exc:  # keep harvesting; record the failure
+        if collector:
+            collector.emit_error(agent_id="orchestrator", error=exc)
         final_output = f"[runner error] {exc}"
     time.sleep(SETTLE_SECONDS)
     t1 = time.time()
@@ -126,7 +130,8 @@ def _reset_fragments() -> None:
 
 
 # --- orchestration ------------------------------------------------------------
-async def _run_all(cases: list[GoldCase], samples: int) -> list[dict]:
+async def _run_all(cases: list[GoldCase], samples: int,
+                   delay: float = DEFAULT_DELAY_BETWEEN_CASES) -> list[dict]:
     root = build_orchestrator()
     collector = TraceCollector(component="orchestrator")
     collector.attach(root)
@@ -137,9 +142,13 @@ async def _run_all(cases: list[GoldCase], samples: int) -> list[dict]:
     runner = Runner(agent=root, app_name=APP_NAME, session_service=session_service)
 
     traces = []
+    is_first = True
     for case in cases:
         for sample in range(samples):
-            trace = await run_case(runner, session_service, case, sample)
+            if not is_first and delay > 0:
+                time.sleep(delay)
+            is_first = False
+            trace = await run_case(runner, session_service, case, sample, collector)
             flag = "PASS" if trace["status"] == "pass" else trace["failure_category"].upper()
             print(f"  {case.case_id} s{sample}: {flag}  -> {trace['final_output'][:60]!r}")
             traces.append(trace)
@@ -163,6 +172,8 @@ def main(argv: list[str]) -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--samples", type=int, default=3)
     ap.add_argument("--case", action="append", dest="case_ids")
+    ap.add_argument("--delay", type=float, default=DEFAULT_DELAY_BETWEEN_CASES,
+                    help="seconds to wait between cases to avoid RPM limits")
     args = ap.parse_args(argv[1:])
 
     try:
@@ -171,8 +182,10 @@ def main(argv: list[str]) -> None:
     except ImportError:
         pass
 
-    if not (os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")):
-        print("WARNING: no GOOGLE_API_KEY / GEMINI_API_KEY set; agent calls will fail.")
+    has_gemini = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    has_groq = os.getenv("GROQ_API_KEY")
+    if not has_gemini and not has_groq:
+        print("WARNING: no GOOGLE_API_KEY / GEMINI_API_KEY / GROQ_API_KEY set; agent calls will fail.")
 
     cases = build_cases()
     if args.case_ids:
@@ -182,7 +195,7 @@ def main(argv: list[str]) -> None:
     procs = start_servers()
     try:
         wait_healthy()
-        traces = asyncio.run(_run_all(cases, args.samples))
+        traces = asyncio.run(_run_all(cases, args.samples, args.delay))
     finally:
         stop_servers(procs)
     _summary(traces)

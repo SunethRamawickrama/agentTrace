@@ -1,7 +1,7 @@
 [project]
 name = "agenttrace"
 version = "0.1.0"
-description = "Add your description here"
+description = "A tool for observing multi-agent (A2A) workflows in production and pre-production, identifying which agent/step caused a workflow to fail, capturing a fix, and feeding that fix back into the system so the same/similar failures don't recur."
 readme = "README.md"
 authors = [
     { name = "SunethRamawickrama", email = "ramasuneth@gmail.com" }
@@ -9,6 +9,7 @@ authors = [
 requires-python = ">=3.11,<3.14"
 dependencies = [
     "google-adk",
+    "google-adk[extensions]",
     "a2a-sdk[http-server]",
     "google-genai",
     "httpx",

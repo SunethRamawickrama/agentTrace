@@ -17,13 +17,14 @@ FRAGMENTS_DIR = TRACES_DIR / "_fragments"
 
 # --- Model configuration -------------------------------------------------------
 
-DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
-DEFAULT_GROQ_MODEL = "groq/llama-3.3-70b-versatile"
+DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
+DEFAULT_GROQ_MODEL = "groq/qwen/qwen3.8-27b"
+DEFAULT_PROVIDER = "groq"
 
 
 def get_model() -> Any:
     """Return a value suitable for ``LlmAgent(model=...)``."""
-    provider = os.getenv("AGENTTRACE_PROVIDER", "gemini").lower()
+    provider = os.getenv("AGENTTRACE_PROVIDER", DEFAULT_PROVIDER).lower()
     if provider == "groq":
         from google.adk.models.lite_llm import LiteLlm  # requires google-adk[extensions]
 

@@ -193,6 +193,24 @@ class TraceCollector:
         )
         return None
 
+    def emit_error(self, agent_id: str, error: Exception) -> None:
+        """Record an infrastructure-level error (API 404, rate limit, timeout, etc.)
+        that ADK does not surface through the normal after_model callback."""
+        self._emit(
+            span_id=_short_id(),
+            parent_span_id=self._current_span,
+            agent_id=agent_id,
+            agent_role=self.component,
+            event_type="message",
+            payload={
+                "direction": "model_error",
+                "error_type": type(error).__name__,
+                "error_message": _truncate(str(error)),
+            },
+            status="failed",
+            invocation_id=None,
+        )
+
     def attach(self, agent: Any) -> Any:
         """Wire all six callbacks onto an LlmAgent and return it."""
         self.attach_agent_only(agent)
