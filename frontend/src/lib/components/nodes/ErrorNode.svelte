@@ -1,0 +1,14 @@
+<script lang="ts">
+	import { Handle, Position, type NodeProps } from '@xyflow/svelte';
+
+	let { data }: NodeProps = $props();
+</script>
+
+<Handle type="target" position={Position.Top} />
+<div class="rounded-lg border-2 border-red-500 bg-red-950/60 px-4 py-2 shadow-md min-w-[160px] text-center">
+	<div class="text-sm font-semibold text-red-300">{data.label}</div>
+	{#if data.durationMs}
+		<div class="text-xs text-slate-400">{data.durationMs}ms</div>
+	{/if}
+</div>
+<Handle type="source" position={Position.Bottom} />
