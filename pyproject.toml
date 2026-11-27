@@ -14,6 +14,8 @@ dependencies = [
     "google-genai",
     "httpx",
     "jsonschema",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
 ]
 
 [project.scripts]
